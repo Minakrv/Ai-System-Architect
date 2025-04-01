@@ -1,0 +1,14 @@
+# backend/.gitignore
+
+# Python virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Env variables
+.env
+
+# VS Code settings (optional)
+.vscode/
