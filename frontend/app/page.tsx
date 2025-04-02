@@ -1,103 +1,170 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import MermaidRenderer from './components/MermaidRenderer';
+import ReactMarkdown from 'react-markdown';
+
+type Architecture = {
+  summary: string;
+  diagram: string;
+  pros: string;
+  cons: string;
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [description, setDescription] = useState('');
+  const [constraints, setConstraints] = useState('');
+  const [result, setResult] = useState('');
+  const [loading, setLoading] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/generate-architecture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system_description: description, constraints }),
+      });
+      const data = await response.json();
+      setResult(data.result);
+    } catch (err) {
+      setResult('Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const extractArchitectures = (markdown: string): Architecture[] => {
+    const blocks = markdown.split(/###?\s*Architecture (Solution|Option) \d+:?/i).filter(Boolean);
+
+    return blocks.map((block) => {
+      let diagram = '';
+
+      // Try proper ```mermaid``` block
+      const diagramMatch = block.match(/```mermaid\s*([\s\S]*?)```/);
+
+      if (diagramMatch) {
+        diagram = diagramMatch[1].trim();
+      } else {
+        // Fallback: try to find raw diagram lines
+        const rawLines = block.match(/graph\s+\w+;[\s\S]*?(?=(\n\n|Pros:|Cons:|$))/i);
+        if (rawLines) {
+          diagram = rawLines[0].trim();
+        }
+      }
+
+      const prosMatch = block.match(/(?:Pros|✅\s*\*\*Pros\*\*):\s*([\s\S]*?)(?=\n+(?:Cons|❌\s*\*\*Cons\*\*)|```|graph|$)/i);
+const consMatch = block.match(/(?:Cons|❌\s*\*\*Cons\*\*):\s*([\s\S]*?)(?=\n+```|graph|$)/i);
+      return {
+        summary: block.trim().split('\n').slice(0, 5).join('\n'),
+        diagram,
+        pros: prosMatch ? prosMatch[1].trim() : 'N/A',
+        cons: consMatch ? consMatch[1].trim() : 'N/A',
+      };
+    });
+  };
+
+  const architectures = extractArchitectures(result);
+
+  return (
+    <main className="min-h-screen p-6 bg-gray-100 text-black">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <h1 className="text-3xl font-bold">AI System Architecture Generator</h1>
+
+        <textarea
+          className="w-full p-3 border rounded text-black"
+          rows={3}
+          placeholder="Describe your system..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+
+        <input
+          className="w-full p-3 border rounded text-black"
+          placeholder="Constraints (e.g. scalable, cost-sensitive)"
+          value={constraints}
+          onChange={(e) => setConstraints(e.target.value)}
+        />
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          {loading ? 'Generating...' : 'Generate Architecture'}
+        </button>
+
+        {result && (
+          <div className="mt-8 space-y-6 text-black">
+            {architectures.length === 0 && <p>No architecture sections found.</p>}
+
+            {architectures.map((arch, index) => (
+              <div
+                key={index}
+                className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow"
+              >
+                <h2 className="text-2xl font-bold text-blue-700 mb-4">
+                  Architecture Option {index + 1}
+                </h2>
+
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-800 mb-1">🧠 Summary</h3>
+                  <p className="text-gray-700 whitespace-pre-line">{arch.summary}</p>
+                </div>
+
+                {arch.diagram && (
+                  <div className="my-4">
+                    <h3 className="font-semibold text-gray-800 mb-2">📈 Diagram</h3>
+                    <MermaidRenderer chart={arch.diagram} rawArchitecture={arch.diagram} />
+                  </div>
+                )}
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-semibold text-green-700">✅ Pros</h3>
+                    {arch.pros ? (
+                      <ReactMarkdown
+                        components={{
+                          p: ({ ...props }) => (
+                            <p className="text-green-800 whitespace-pre-line" {...props} />
+                          ),
+                          li: ({ ...props }) => (
+                            <li className="ml-4 list-disc text-green-800" {...props} />
+                          ),
+                        }}
+                      >
+                        {arch.pros}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-sm italic text-gray-400">No pros listed by the AI.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-red-700">❌ Cons</h3>
+                    {arch.cons ? (
+                      <ReactMarkdown
+                        components={{
+                          p: ({ ...props }) => (
+                            <p className="text-red-800 whitespace-pre-line" {...props} />
+                          ),
+                          li: ({ ...props }) => (
+                            <li className="ml-4 list-disc text-red-800" {...props} />
+                          ),
+                        }}
+                      >
+                        {arch.cons}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-sm italic text-gray-400">No cons listed by the AI.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
