@@ -1,5 +1,5 @@
 'use client';
-
+import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import MermaidRenderer from './components/MermaidRenderer';
 import FormField from './components/FormField';
@@ -18,6 +18,7 @@ export default function Home() {
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [step, setStep] = useState(1);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -52,8 +53,8 @@ export default function Home() {
         }
       }
 
-      const prosMatch = block.match(/(?:Pros|✅\s*\*\*Pros\*\*):\s*([\s\S]*?)(?=\n+(?:Cons|❌\s*\*\*Cons\*\*)|```|graph|$)/i);
-      const consMatch = block.match(/(?:Cons|❌\s*\*\*Cons\*\*):\s*([\s\S]*?)(?=\n+```|graph|$)/i);
+      const prosMatch = block.match(/(?:Pros|✅\s*\*\*Pros\*\*|###\s*Pros):?\s*([\s\S]*?)(?=\n+(?:Cons|❌\s*\*\*Cons\*\*|###\s*Cons)|```|graph|$)/i);
+      const consMatch = block.match(/(?:Cons|❌\s*\*\*Cons\*\*|###\s*Cons):?\s*([\s\S]*?)(?=\n+```|graph|$)/i);
 
       return {
         summary: block.trim().split('\n').slice(0, 5).join('\n'),
@@ -78,37 +79,76 @@ export default function Home() {
         <h1 className="text-3xl font-bold">AI System Architecture Generator</h1>
 
         <div className="space-y-4">
-          <FormField
-            label="System Description"
-            id="systemDescription"
-            type="textarea"
-            icon="🧠"
-            rows={4}
-            placeholder="Describe your system or product idea..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          <p className="text-xs text-gray-500 text-right">
-            {description.trim().split(/\s+/).length} words
-          </p>
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <FormField
+                  label="System Description"
+                  id="systemDescription"
+                  type="textarea"
+                  icon="🧠"
+                  rows={4}
+                  placeholder="Describe your system or product idea..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </motion.div>
+            )}
 
-          <FormField
-            label="Constraints"
-            id="constraints"
-            icon="⚙️"
-            placeholder="e.g. cost-efficient, serverless, low latency"
-            value={constraints}
-            onChange={(e) => setConstraints(e.target.value)}
-          />
+            {step === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <FormField
+                  label="Constraints"
+                  id="constraints"
+                  icon="⚙️"
+                  placeholder="e.g. cost-efficient, serverless, low latency"
+                  value={constraints}
+                  onChange={(e) => setConstraints(e.target.value)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          {loading ? 'Generating...' : 'Generate Architecture'}
-        </button>
+        <div className="flex justify-between pt-4">
+          {step > 1 && (
+            <button
+              onClick={() => setStep(step - 1)}
+              className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              ◀ Back
+            </button>
+          )}
+
+          {step < 2 ? (
+            <button
+              onClick={() => setStep(step + 1)}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ml-auto"
+            >
+              Next ▶
+            </button>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ml-auto"
+            >
+              {loading ? 'Generating...' : 'Generate Architecture'}
+            </button>
+          )}
+        </div>
 
         {result && (
           <div className="mt-8 space-y-6 text-black">
@@ -131,7 +171,12 @@ export default function Home() {
 
                 <div className="mb-4">
                   <h3 className="font-semibold text-gray-800 mb-1">🧠 Summary</h3>
-                  <p className="text-gray-700 whitespace-pre-line">{arch.summary}</p>
+                  <p className="text-gray-700 whitespace-pre-line">
+                    {arch.summary
+                      .replace(/^[-*]\s+/gm, '') // remove bullet points
+                      .replace(/^#{1,6}\s+/gm, '') // remove markdown headings
+                      .trim()}
+                  </p>
                 </div>
                 {expanded && (
                   <>
