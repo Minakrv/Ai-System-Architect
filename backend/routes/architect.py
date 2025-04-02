@@ -1,8 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 import os
 import httpx
+import uuid
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from db.db import get_db
+from db.models import Architecture
 
 # Load environment variables
 load_dotenv()
@@ -14,6 +19,63 @@ router = APIRouter()
 class ArchitectureRequest(BaseModel):
     system_description: str
     constraints: str
+
+@router.post("/upload-file")
+async def upload_file(file: UploadFile = File(...)):
+    if not file.filename.endswith(('.txt', '.md')):
+        raise HTTPException(status_code=400, detail="Only .txt or .md files are supported")
+    
+    content = await file.read()
+    decoded = content.decode('utf-8')
+    
+    return {
+        "parsed_description": decoded[:1000],  # Limit preview
+        "full_content": decoded
+    }
+
+@router.get("/architectures/{arch_id}/metrics")
+async def get_architecture_metrics(arch_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Architecture).where(Architecture.id == uuid.UUID(arch_id)))
+    arch = result.scalar_one_or_none()
+
+    if not arch:
+        raise HTTPException(status_code=404, detail="Architecture not found")
+
+    text = arch.result
+
+    # --- Simple keyword-based stack detection ---
+    known_techs = [
+        "React", "Vue", "Angular", "Next.js",
+        "Node.js", "Python", "Flask", "Django", "Java", "Spring Boot",
+        "Redis", "PostgreSQL", "MongoDB", "MySQL", "Kafka", "RabbitMQ",
+        "S3", "Firebase", "AWS Lambda", "API Gateway", "Cloud Functions"
+    ]
+
+    stack_counts = {tech: text.count(tech) for tech in known_techs if tech in text}
+
+    # --- Count services per architecture block ---
+    architecture_blocks = text.split("### Architecture Option")
+    service_counts = [block.count("graph TD") for block in architecture_blocks if block.strip()]
+
+    # --- Is it frontend-heavy? ---
+    frontend_keywords = ["React", "Vue", "Angular", "UI", "Frontend"]
+    backend_keywords = ["Node.js", "Django", "Flask", "Spring", "API", "Backend", "Java", "Python"]
+
+    frontend_score = sum(text.count(k) for k in frontend_keywords)
+    backend_score = sum(text.count(k) for k in backend_keywords)
+
+    is_frontend_heavy = frontend_score > backend_score
+
+    # --- Does it use serverless? ---
+    serverless_keywords = ["AWS Lambda", "Firebase", "Vercel", "Netlify", "Cloud Functions", "Serverless"]
+    uses_serverless = any(kw in text for kw in serverless_keywords)
+
+    return {
+        "stack_counts": stack_counts,
+        "average_service_count": round(sum(service_counts) / len(service_counts), 2) if service_counts else 0,
+        "frontend_heavy": is_frontend_heavy,
+        "uses_serverless": uses_serverless
+    }
 
 @router.post("/generate-architecture")
 async def generate_architecture(data: ArchitectureRequest):

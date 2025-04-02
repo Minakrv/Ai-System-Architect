@@ -4,12 +4,20 @@ import { useState } from 'react';
 import MermaidRenderer from './components/MermaidRenderer';
 import FormField from './components/FormField';
 import ReactMarkdown from 'react-markdown';
+import FileUploader from './components/FileUploader';
 
 type Architecture = {
   summary: string;
   diagram: string;
   pros: string;
   cons: string;
+  id?: string;
+  metrics?: {
+    stack_counts: Record<string, number>;
+    average_service_count: number;
+    frontend_heavy: boolean;
+    uses_serverless: boolean;
+  };
 };
 
 export default function Home() {
@@ -88,6 +96,7 @@ export default function Home() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.3 }}
               >
+                <FileUploader onParsed={(content) => setDescription(content)} />
                 <FormField
                   label="System Description"
                   id="systemDescription"
