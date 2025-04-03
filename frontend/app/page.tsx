@@ -39,6 +39,7 @@ export default function Home() {
       const data = await response.json();
       setResult(data.result);
     } catch (err) {
+      console.error('❌ Error generating architecture:', err);
       setResult('Something went wrong');
     } finally {
       setLoading(false);
